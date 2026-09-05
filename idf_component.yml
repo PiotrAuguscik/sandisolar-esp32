@@ -1,0 +1,4 @@
+version: "0.6.0"
+description: "Read SANDISOLAR inverter measurements, status and parameters from an ESP32"
+url: "https://github.com/PiotrAuguscik/sandisolar-esp32"
+license: "MIT"

@@ -1,0 +1,30 @@
+{
+  "name": "sandisolar-esp32",
+  "version": "0.6.0",
+  "description": "Read SANDISOLAR inverter measurements, status and parameters from an ESP32 over Bluetooth",
+  "keywords": ["esp32", "sandisolar", "inverter", "solar", "modbus", "ble"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PiotrAuguscik/sandisolar-esp32.git"
+  },
+  "license": "MIT",
+  "frameworks": ["arduino", "espidf"],
+  "platforms": ["espressif32", "native"],
+  "export": {
+    "include": [
+      "src", "examples", "docs", "tests", "tools/test_ble_boundaries.py", ".github", ".gitignore",
+      "README.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md",
+      "CMakeLists.txt", "library.json", "library.properties", "idf_component.yml"
+    ],
+    "exclude": [
+      "**/.pio/**", "**/__pycache__/**", "**/*.pyc",
+      "**/token", "**/token.txt", "**/.env", "**/.env.*",
+      "**/secrets.local.json", "**/secrets.h", "**/secrets.local.h",
+      "**/*.pem", "**/*.key", "**/id_rsa", "**/id_ed25519"
+    ]
+  },
+  "build": {
+    "includeDir": "src",
+    "srcDir": "src"
+  }
+}

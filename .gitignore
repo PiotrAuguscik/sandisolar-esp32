@@ -1,0 +1,27 @@
+/build/
+/.pio/
+**/.pio/
+/.idea/
+/.vscode/
+__pycache__/
+*.pyc
+*.swp
+*.user
+*.pcap
+*.pcapng
+*btsnoop*.log
+bugreport*.zip
+
+# Local credentials and signing material never belong in the public library.
+token
+token.txt
+.env
+.env.*
+!.env.example
+secrets.local.json
+secrets.h
+secrets.local.h
+*.pem
+*.key
+id_rsa
+id_ed25519
