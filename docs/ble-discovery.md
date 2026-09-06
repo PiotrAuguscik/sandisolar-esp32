@@ -83,8 +83,27 @@ two KiB of bounded queue/result storage; vendor stack allocation is separate.
 The lifecycle follows Espressif's
 [GAP API contract](https://docs.espressif.com/projects/esp-idf/en/v4.4.7/esp32c3/api-reference/bluetooth/esp_gap_ble.html),
 including retaining scan parameters through their completion callback. Host
-tests exercise the actual adapter with an SDK double; real controller timing,
-inverter discovery and Wi-Fi coexistence remain hardware test gates.
+tests exercise the actual adapter with an SDK double. Single-unit hardware
+tests of exact-name discovery, named reads and short direct reconnects passed
+with Wi-Fi off during BLE; see the [support matrix](support-matrix.md).
+Long endurance and concurrent Wi-Fi/BLE remain unqualified.
+
+Initialization queries Wi-Fi mode/power save without changing either. With
+initialized non-NULL Wi-Fi and `WIFI_PS_NONE`, it returns `RadioConflict`
+before queue allocation or controller startup. Unexpected query failures return
+`TransportFailure` without starting Bluetooth. Both preflight failures allow a
+caller-controlled retry; they do not claim ownership of the Bluetooth stack.
+A failure after controller initialization begins remains terminal for this
+adapter instance. Native controller-init/enable return values and status are
+checked; there is no adapter busy-wait after a rejected initialization.
+
+The preflight addresses the IDF4 abort described in
+[Espressif issue 9595](https://github.com/espressif/esp-idf/issues/9595).
+It is not a general coexistence validator or a hard deadline for SDK internals.
+Serialize application radio configuration and do not select `WIFI_PS_NONE`
+after Bluetooth startup. The library never changes Wi-Fi policy itself.
+Host tests cover preflight rejection/retry, query errors, controller failures,
+and existing scan/GATT lifecycle behavior; SDK doubles are not radio emulators.
 
 Enable the inverter's Bluetooth before first discovery as described in
 [README](../README.md#first-connection-enable-bluetooth-on-sandisolar).

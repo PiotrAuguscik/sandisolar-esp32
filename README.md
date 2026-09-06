@@ -22,8 +22,9 @@ repository's MIT license. Appearance alone does not establish compatibility.
 > [!WARNING]
 > Independent, experimental project; not affiliated with SANDISOLAR or Aohai.
 > Validated protocol reads and some owner-compared values come from one
-> SD PRO EU 6.5K / AO-6KSL-G3. The reusable BLE scanner/session still needs
-> on-device endurance, reconnect and Wi-Fi coexistence tests. The library has
+> SD PRO EU 6.5K / AO-6KSL-G3. The reusable adapter has passed single-unit
+> discovery, named reads and short reconnect tests with Wi-Fi off during BLE.
+> Long endurance and Wi-Fi coexistence remain unqualified. The library has
 > not been released yet. Parameter coverage depends on the model and firmware;
 > some interpretations are explicitly experimental.
 
@@ -96,6 +97,21 @@ Use [ReadBatteryBle](examples/ReadBatteryBle/ReadBatteryBle.ino):
 
 Public includes use `<sandisolar.h>` and
 `<sandisolar/arduino_bluedroid_link.h>`, with namespace `sandisolar`.
+
+### Applications that also use Wi-Fi
+
+On this IDF4 backend, starting Bluetooth with Wi-Fi modem sleep disabled
+(`WiFi.setSleep(false)` / `WIFI_PS_NONE`) can abort inside the vendor coexistence
+code. `initialize_arduino_bluedroid()` therefore returns **`Error::RadioConflict`**
+(`radio_conflict`) before allocating queues or starting Bluetooth when it detects
+that configuration. It does not disconnect, reconfigure or turn off Wi-Fi.
+
+Your application owns radio configuration. A rejected preflight can be retried
+after the application selects a compatible configuration; do not disable modem
+sleep while BLE is active. Passing this check does not guarantee reliable
+Wi-Fi/BLE coexistence on a particular board/router. Keep a remote device's working
+network configuration unchanged until an alternative has been qualified.
+See [backend limits and tests](docs/ble-discovery.md#backend-and-qualification).
 
 ## API at a glance
 

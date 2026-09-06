@@ -34,6 +34,13 @@ add_test(NAME bluedroid_link_tests COMMAND bluedroid_link_tests)
 foreach(scenario scan_happy scan_config_timeout scan_timeout scan_control_overflow scan_duplicate_control)
   add_test(NAME ${scenario} COMMAND bluedroid_link_tests ${scenario})
 endforeach()
+foreach(scenario init_wifi_absent init_wifi_null init_wifi_min init_wifi_max
+    init_wifi_ap init_wifi_apsta init_wifi_none_sta init_wifi_none_ap init_wifi_none_apsta
+    init_wifi_mode_error init_wifi_ps_error init_wifi_ps_unknown
+    init_controller_error init_controller_stuck init_enable_error init_enable_stuck)
+  add_test(NAME ${scenario} COMMAND bluedroid_link_tests ${scenario})
+  set_tests_properties(${scenario} PROPERTIES TIMEOUT 5)
+endforeach()
 
 add_executable(ble_discovery_tests ble_discovery_test.cpp)
 target_link_libraries(ble_discovery_tests PRIVATE haipower)

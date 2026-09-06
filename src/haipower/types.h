@@ -31,6 +31,7 @@ enum class Error : std::uint8_t {
   NotFound,
   AmbiguousDevice,
   IncompleteScan,
+  RadioConflict,
 };
 
 template <typename T>

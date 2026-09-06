@@ -32,7 +32,15 @@ class BleBoundaries(unittest.TestCase):
 
     def test_adapter_does_not_take_wifi_restart_or_worker_authority(self):
         text = code("src/arduino_bluedroid_link.cpp")
-        self.assertNotRegex(text, r"WiFi|esp_wifi_|esp_restart|ESP\.restart|nvs_flash_erase")
+        self.assertNotRegex(text, r"WiFi|esp_restart|ESP\.restart|nvs_flash_erase")
+        # Two read-only preflight queries are permitted, no network mutation.
+        self.assertEqual(set(re.findall(r"\besp_wifi_\w+", text)),
+                         {"esp_wifi_get_mode", "esp_wifi_get_ps"})
+        init = text[text.index("Error BluedroidLink::initialize()"):
+                    text.index("void BluedroidLink::callback(")]
+        self.assertLess(init.index("checkRadioConfiguration()"), init.index("attempted_ = true"))
+        self.assertLess(init.index("radio != Error::None"), init.index("xQueueCreate("))
+        self.assertNotRegex(text, r"\bbtStart\s*\(")
         self.assertNotRegex(text, r"BLEClient|BLEDevice|NimBLE|xTaskCreate|vTaskDelete|delay\(")
         # The only remote write effects are the codec's bounded characteristic
         # request and the notification CCCD. No raw/configuration side channel.

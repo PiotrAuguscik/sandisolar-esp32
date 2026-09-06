@@ -2,9 +2,9 @@
 
 #if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR == 4
 #include <Arduino.h>
-#include <esp32-hal-bt.h>
 #include <esp_bt.h>
 #include <esp_bt_main.h>
+#include <esp_wifi.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatt_common_api.h>
 #include <esp_gattc_api.h>
@@ -110,6 +110,42 @@ BluedroidLink& singleton() {
   return instance;
 }
 
+Error checkRadioConfiguration() {
+  wifi_mode_t mode = WIFI_MODE_NULL;
+  const auto queried = esp_wifi_get_mode(&mode);
+  if (queried == ESP_ERR_WIFI_NOT_INIT) return Error::None;
+  if (queried != ESP_OK) return Error::TransportFailure;
+  if (mode == WIFI_MODE_NULL) return Error::None;
+  if (mode != WIFI_MODE_STA && mode != WIFI_MODE_AP && mode != WIFI_MODE_APSTA)
+    return Error::TransportFailure;
+  wifi_ps_type_t power_save = WIFI_PS_NONE;
+  if (esp_wifi_get_ps(&power_save) != ESP_OK) return Error::TransportFailure;
+  // IDF4 coexistence can abort inside controller_enable with WIFI_PS_NONE.
+  // The application owns Wi-Fi policy: refuse, never silently change it.
+  if (power_save == WIFI_PS_NONE) return Error::RadioConflict;
+  if (power_save != WIFI_PS_MIN_MODEM && power_save != WIFI_PS_MAX_MODEM)
+    return Error::TransportFailure;
+  return Error::None;
+}
+
+bool startController() {
+  esp_bt_controller_config_t config = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+  // Arduino 2.0.17 btStart ignores init errors and busy-spins while IDLE.
+  // Check each synchronous SDK transition; never wait for a failed transition.
+  if (esp_bt_controller_init(&config) != ESP_OK ||
+      esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_INITED)
+    return false;
+#if defined(CONFIG_BTDM_CONTROLLER_MODE_BTDM)
+  const auto mode = ESP_BT_MODE_BTDM;
+#elif defined(CONFIG_BTDM_CONTROLLER_MODE_BR_EDR_ONLY)
+  const auto mode = ESP_BT_MODE_CLASSIC_BT;
+#else
+  const auto mode = ESP_BT_MODE_BLE;
+#endif
+  return esp_bt_controller_enable(mode) == ESP_OK &&
+      esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED;
+}
+
 Error BluedroidLink::initialize() {
   if (initialized_) return Error::None;
   if (attempted_) return Error::TransportFault;
@@ -117,12 +153,14 @@ Error BluedroidLink::initialize() {
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE ||
       esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_UNINITIALIZED)
     return Error::Busy;
+  const auto radio = checkRadioConfiguration();
+  if (radio != Error::None) return radio;  // no allocation/BT side effects yet
   attempted_ = true;
   queue_ = xQueueCreate(8, sizeof(RawEvent));
   scan_controls_ = xQueueCreate(4, sizeof(ScanControl));
   scan_advertisements_ = xQueueCreate(16, sizeof(BleScanCandidate));
   if (!queue_ || !scan_controls_ || !scan_advertisements_ ||
-      !btStart() || esp_bluedroid_init() != ESP_OK ||
+      !startController() || esp_bluedroid_init() != ESP_OK ||
       esp_bluedroid_enable() != ESP_OK ||
       esp_ble_gattc_register_callback(callback) != ESP_OK ||
       esp_ble_gap_register_callback(gap_callback) != ESP_OK ||

@@ -12,6 +12,12 @@ int failures=0;
 #define CHECK(x) do { if (!(x)) { std::cerr << __LINE__ << ": " << #x << '\n'; ++failures; } } while (false)
 std::uint32_t now=0;
 int controller=0;
+int wifi_mode_error=ESP_ERR_WIFI_NOT_INIT, wifi_ps_error=0;
+wifi_mode_t wifi_mode=WIFI_MODE_STA;
+wifi_ps_type_t wifi_ps=WIFI_PS_MIN_MODEM;
+int wifi_queries=0, power_queries=0;
+int controller_init_error=0, controller_enable_error=0;
+bool controller_init_stuck=false, controller_enable_stuck=false;
 Callback callback=nullptr;
 GapCallback gap_callback=nullptr;
 struct TestQueue {
@@ -107,7 +113,25 @@ int xQueueReceive(QueueHandle_t handle,void* data,int wait) {
   std::memcpy(data,q.values.front().data(),q.event_size);q.values.pop_front();return 1;
 }
 std::uint32_t millis(){return now;}
-bool btStart(){controller=1;call("bt_start");return true;}
+int esp_wifi_get_mode(wifi_mode_t* mode){++wifi_queries;*mode=wifi_mode;return wifi_mode_error;}
+int esp_wifi_get_ps(wifi_ps_type_t* ps){++power_queries;*ps=wifi_ps;return wifi_ps_error;}
+int esp_bt_controller_init(esp_bt_controller_config_t* config){
+  CHECK(config->configured==42);call("controller_init");
+  if (!controller_init_error && !controller_init_stuck) controller=ESP_BT_CONTROLLER_STATUS_INITED;
+  return controller_init_error;
+}
+int esp_bt_controller_enable(esp_bt_mode_t mode){
+#if defined(CONFIG_BTDM_CONTROLLER_MODE_BTDM)
+  CHECK(mode==ESP_BT_MODE_BTDM);
+#elif defined(CONFIG_BTDM_CONTROLLER_MODE_BR_EDR_ONLY)
+  CHECK(mode==ESP_BT_MODE_CLASSIC_BT);
+#else
+  CHECK(mode==ESP_BT_MODE_BLE);
+#endif
+  call("controller_enable");
+  if (!controller_enable_error && !controller_enable_stuck) controller=ESP_BT_CONTROLLER_STATUS_ENABLED;
+  return controller_enable_error;
+}
 int esp_bt_controller_get_status(){return controller;}
 int esp_bluedroid_get_status(){return 0;}
 int esp_bluedroid_init(){return call("bt_init");}
@@ -259,10 +283,57 @@ void scan_tests(const std::string& mode) {
   CHECK(session.connect(target,now)==Error::TransportFault);
 }
 
+void initialization_tests(const std::string& mode) {
+  using haipower::initialize_arduino_bluedroid;
+  CHECK(std::string(haipower::error_name(Error::RadioConflict))=="radio_conflict");
+  const bool rejected=mode=="init_wifi_none_sta" || mode=="init_wifi_none_ap" ||
+      mode=="init_wifi_none_apsta" || mode=="init_wifi_mode_error" ||
+      mode=="init_wifi_ps_error" || mode=="init_wifi_ps_unknown";
+  wifi_mode_error=0;
+  if (mode=="init_wifi_absent") wifi_mode_error=ESP_ERR_WIFI_NOT_INIT;
+  if (mode=="init_wifi_null") wifi_mode=WIFI_MODE_NULL;
+  if (mode=="init_wifi_max") wifi_ps=WIFI_PS_MAX_MODEM;
+  if (mode=="init_wifi_none_sta" || mode=="init_wifi_none_ap" || mode=="init_wifi_none_apsta")
+    wifi_ps=WIFI_PS_NONE;
+  if (mode=="init_wifi_none_ap" || mode=="init_wifi_ap") wifi_mode=WIFI_MODE_AP;
+  if (mode=="init_wifi_none_apsta" || mode=="init_wifi_apsta") wifi_mode=WIFI_MODE_APSTA;
+  if (mode=="init_wifi_mode_error") wifi_mode_error=-1;
+  if (mode=="init_wifi_ps_error") wifi_ps_error=-1;
+  if (mode=="init_wifi_ps_unknown") wifi_ps=static_cast<wifi_ps_type_t>(3);
+  if (rejected) {
+    const auto expected=wifi_ps==WIFI_PS_NONE ? Error::RadioConflict : Error::TransportFailure;
+    CHECK(initialize_arduino_bluedroid()==expected);
+    CHECK(calls.empty() && queue_count==0 && controller==0);
+    // No attempted-state poison: fixing caller policy permits initialization.
+    wifi_mode_error=wifi_ps_error=0;wifi_ps=WIFI_PS_MIN_MODEM;
+  }
+  if (mode=="init_controller_error") controller_init_error=-1;
+  if (mode=="init_enable_error") controller_enable_error=-1;
+  controller_init_stuck=mode=="init_controller_stuck";
+  controller_enable_stuck=mode=="init_enable_stuck";
+  const bool fault=controller_init_error || controller_enable_error ||
+      controller_init_stuck || controller_enable_stuck;
+  CHECK(initialize_arduino_bluedroid()==(fault ? Error::TransportFault : Error::None));
+  if (fault) {
+    CHECK(!callback && !gap_callback);
+    CHECK(calls.size()==(controller_init_error || controller_init_stuck ? 1u : 2u));
+  } else CHECK(callback && gap_callback && controller==ESP_BT_CONTROLLER_STATUS_ENABLED);
+  const auto count=calls.size();
+  CHECK(initialize_arduino_bluedroid()==(fault ? Error::TransportFault : Error::None));
+  CHECK(calls.size()==count && queue_count==3);
+  if (mode=="init_wifi_absent" || mode=="init_wifi_null") CHECK(power_queries==0);
+}
+
 int main(int argc,char** argv) {
   controller=1;
   CHECK(haipower::initialize_arduino_bluedroid()==Error::Busy && calls.empty());
-  controller=0;CHECK(haipower::initialize_arduino_bluedroid()==Error::None);
+  CHECK(wifi_queries==0 && queue_count==0);
+  controller=0;
+  if (argc>1 && std::string(argv[1]).find("init_")==0) {
+    initialization_tests(argv[1]);
+    std::cout<<"Initialization adapter failures: "<<failures<<'\n';return failures?1:0;
+  }
+  CHECK(haipower::initialize_arduino_bluedroid()==Error::None);
   if(argc>1){scan_tests(argv[1]);std::cout<<"Scan adapter failures: "<<failures<<'\n';return failures?1:0;}
   haipower::BleReadSession s(haipower::arduino_bluedroid_link(),crypto);
   ready(s);

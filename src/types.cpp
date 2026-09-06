@@ -29,6 +29,7 @@ const char* error_name(Error error) {
     case Error::NotFound: return "not_found";
     case Error::AmbiguousDevice: return "ambiguous_device";
     case Error::IncompleteScan: return "incomplete_scan";
+    case Error::RadioConflict: return "radio_conflict";
   }
   return "unknown";
 }

@@ -12,6 +12,9 @@ namespace haipower {
 // connect/read/poll do not wait for remote events. Refuses an existing BT stack.
 // Owns BLE callbacks/controller for the process lifetime, never Wi-Fi or an
 // application NVS namespace. The SDK can maintain its own Bluetooth cache.
+// RadioConflict: initialized/non-NULL Wi-Fi has modem sleep disabled. This
+// read-only preflight can be retried after the application corrects its policy.
+// Serialize radio configuration; do not disable modem sleep while BLE is active.
 Error initialize_arduino_bluedroid();
 BleLink& arduino_bluedroid_link();
 // Same controller owner as the GATT link; scan and GATT are mutually exclusive.
