@@ -23,8 +23,9 @@ repository's MIT license. Appearance alone does not establish compatibility.
 > Independent, experimental project; not affiliated with SANDISOLAR or Aohai.
 > Validated protocol reads and some owner-compared values come from one
 > SD PRO EU 6.5K / AO-6KSL-G3. The reusable adapter has passed single-unit
-> discovery, named reads and short reconnect tests with Wi-Fi off during BLE.
-> Long endurance and Wi-Fi coexistence remain unqualified. The library has
+> discovery and a 10.5-hour read run with concurrent Wi-Fi/HTTPS: 1254 valid
+> reads and four correlation-limit reconnects. This qualifies that tested
+> combination, not every device/router or recovery scenario. The library has
 > not been released yet. Parameter coverage depends on the model and firmware;
 > some interpretations are explicitly experimental.
 
@@ -54,12 +55,16 @@ in the inverter's **Setting → General Setting** screen:
 2. Press **Set**; selecting Enable alone is not sufficient.
 3. Start the ESP's BLE scan promptly, while the inverter/logger is visible.
 
-After discovery, reconnect directly using the saved logger address, address
-type and name; another scan is not required while those details remain valid
-and the logger is connectable. The example keeps the selected logger in memory.
-To reuse it after restarting the ESP, your application must persist those details.
-If the logger is unavailable, repeat **Enable → Set** and scan again. The library
-does not enable Bluetooth or change inverter settings itself.
+Once enabled and connected, keep the BLE session open for continuous reads.
+If Bluetooth becomes unavailable after a disconnection, repeat **Enable → Set**
+before reconnecting; a saved address does not bypass this requirement. The app
+may still display Enabled even when the logger is unreachable.
+
+The example saves the logger address, address type and name in ESP32 NVS after
+the first validated read and tries that target directly on the next boot.
+Another scan is unnecessary while the saved target remains valid and connectable.
+The library does not enable Bluetooth or change inverter settings itself. See
+[continuous reads and restart recovery](docs/continuous-reading.md).
 
 The ESP must be near the inverter/logger. Avoid a simultaneous phone connection
 using **Local Tool** while the ESP connects. An ordinary cloud view in the app
@@ -90,8 +95,9 @@ Use [ReadBatteryBle](examples/ReadBatteryBle/ReadBatteryBle.ino):
   candidate, or set your **logger name/PN**, e.g. `WF12345678`, if several exist.
   This is not the inverter serial number. Examples contain synthetic values.
 - The sketch scans for 15 seconds, lists candidates, connects, and reads battery
-  SOC, SOH, voltage, current, temperature, current limits and capacity every ten
-  seconds. Edit its `signals` array to choose parameters. It bounds retry attempts.
+  SOC, SOH, voltage, current, temperature, current limits and capacity every 30
+  seconds by default. Edit `read_interval_ms` and its `signals` array to
+  choose cadence and parameters. It bounds retry attempts.
 - Several matching devices, incomplete scan results and missing data are errors;
   it never selects the strongest signal or replaces failed measurements with 0.
 
@@ -140,14 +146,15 @@ inverter profile. Discovery hints are not authenticated identity or model proof.
 
 - [BLE discovery and selection](docs/ble-discovery.md)
 - [BLE session, lifecycle and errors](docs/ble-session.md)
+- [Continuous reading, saved targets and restart recovery](docs/continuous-reading.md)
 - [Experimental parameters and complete catalogue](docs/experimental-parameters.md)
 - [Architecture and responsibility boundaries](docs/architecture.md)
 
 For wider parameters include `<sandisolar/experimental.h>`. Retain the proposed
 interpretation's `ProtocolMap`, `Hypothesis`, `ConflictingSources` or `Unknown`
 metadata and original words. **297 interpretations does not mean 297 working
-sensors.** SOC register 128 retains a conservative scale-quality flag: raw 100
-matched 100% on the tested unit, but other ranges/models still need comparison.
+sensors.** SOC register 128 retains a conservative scale-quality flag: raw 97 and
+100 matched 97% and 100% on the tested unit; other ranges/models need comparison.
 Timestamps describe callback arrival, not the inverter's acquisition time.
 
 ## Read SOC — no register numbers

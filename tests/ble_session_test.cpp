@@ -173,6 +173,36 @@ void correlation_is_never_reused_in_a_connection() {
   CHECK(link.opens==1 && link.closes==0); // caller decides reconnect policy
 }
 
+void sustained_reads_cross_four_fenced_session_renewals() {
+  Link link; haipower::BleReadSession s(link,crypto); ready(link,s);
+  haipower::BleReadResult result{};
+  for (unsigned i=0;i<1254;++i) {
+    const std::uint32_t now=i*30000;
+    if (i && i%255==0) {
+      CHECK(s.read(soc,now)==Error::CorrelationExhausted);
+      s.disconnect(now);
+      CHECK(s.connect(target,now)==Error::Busy);
+      link.push(Link::Kind::Closed); s.poll(now+1);
+      CHECK(s.state()==BleSessionState::Idle);
+      ready(link,s,now+2);
+    }
+    CHECK(s.read(soc,now+3)==Error::None);
+    CHECK(link.last_write[6]==i%255);
+    link.push(Link::Kind::Written);
+    if (i && i%255==0) {
+      link.response(65535,0,now+4); link.events.back().epoch=link.epoch-1;
+      s.poll(now+4); CHECK(!s.take(result)); // old epoch cannot satisfy new read
+    }
+    link.response(i%101,i%255,now+5); s.poll(now+5);
+    CHECK(s.take(result) && result.error==Error::None);
+    CHECK(result.epoch==i/255+1 && result.registers[0]==i%101);
+  }
+  CHECK(link.opens==5 && link.closes==4);
+  s.disconnect(1254*30000);
+  link.push(Link::Kind::Closed); s.poll(1254*30000+1);
+  CHECK(s.state()==BleSessionState::Idle && link.closes==5);
+}
+
 void disconnect_cancel_and_transport_failures_are_terminal_once() {
   for (int scenario=0;scenario<5;++scenario) {
     Link link; haipower::BleReadSession s(link,crypto); ready(link,s);
@@ -258,6 +288,7 @@ int main() {
   timeout_closes_and_never_publishes_a_late_or_cached_value();
   capacity_validation_and_wraparound();
   correlation_is_never_reused_in_a_connection();
+  sustained_reads_cross_four_fenced_session_renewals();
   disconnect_cancel_and_transport_failures_are_terminal_once();
   named_reads_use_existing_transport_and_error_boundaries();
   std::cout << "BLE session failures: " << failures << '\n';

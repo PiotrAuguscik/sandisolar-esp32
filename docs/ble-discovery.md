@@ -86,7 +86,9 @@ including retaining scan parameters through their completion callback. Host
 tests exercise the actual adapter with an SDK double. Single-unit hardware
 tests of exact-name discovery, named reads and short direct reconnects passed
 with Wi-Fi off during BLE; see the [support matrix](support-matrix.md).
-Long endurance and concurrent Wi-Fi/BLE remain unqualified.
+A subsequent 10.5-hour run also passed with concurrent Wi-Fi/HTTPS and four
+correlation-limit reconnects, on that same C3/inverter combination only.
+This does not prove reconnectability after a long absence or a power failure.
 
 Initialization queries Wi-Fi mode/power save without changing either. With
 initialized non-NULL Wi-Fi and `WIFI_PS_NONE`, it returns `RadioConflict`
@@ -107,3 +109,4 @@ and existing scan/GATT lifecycle behavior; SDK doubles are not radio emulators.
 
 Enable the inverter's Bluetooth before first discovery as described in
 [README](../README.md#first-connection-enable-bluetooth-on-sandisolar).
+For an already selected logger, see [saved targets and connection availability](continuous-reading.md).

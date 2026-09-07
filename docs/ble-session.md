@@ -57,7 +57,7 @@ Idle -> Connecting -> Ready -> Reading -> Ready
   checked before queued events. Unsigned monotonic millisecond subtraction
   tolerates a normal wrap when polled regularly, not a whole wrap with no polling.
 - A one-second minimum gap after submission/completion survives reconnect.
-  Applications may choose a slower cadence; the example uses ten seconds.
+  Applications may choose a slower cadence; the example uses 30 seconds.
 - Correlations 0..254 are used once per connection. CorrelationExhausted requires
   close/reconnect. Epochs fence local queued callbacks; they are not protection
   against an adversarial peripheral replay.
@@ -99,7 +99,9 @@ most eight port events; native SDK enqueue/cache operations can take internal
 locks. This is cooperative I/O, not a hard-real-time latency guarantee.
 
 Tests exercise the actual adapter using a bounded SDK double and compile the
-public example with real ESP headers/libraries. They do not qualify real
-controller timing, sustained reads, repeated reconnects, cached discovery,
-heap stability or simultaneous Wi-Fi/BLE. These remain on-device tests.
-See [support](support-matrix.md) for separate protocol evidence.
+public example with real ESP headers/libraries. Host tests alone do not qualify
+controller timing or power-loss recovery. A separate 10.5-hour single-unit run
+validated sustained reads, four correlation-limit reconnects and concurrent
+Wi-Fi/HTTPS on the tested C3/backend. See [support](support-matrix.md) for the
+scope and [continuous reading](continuous-reading.md) for application ownership,
+saved targets and cases that still require testing.

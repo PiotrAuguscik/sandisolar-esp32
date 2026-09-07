@@ -23,6 +23,11 @@ target_link_libraries(ble_session_tests PRIVATE haipower)
 target_compile_options(ble_session_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
 add_test(NAME ble_session_tests COMMAND ble_session_tests)
 
+add_executable(saved_logger_tests saved_logger_test.cpp)
+target_link_libraries(saved_logger_tests PRIVATE haipower)
+target_compile_options(saved_logger_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME saved_logger_tests COMMAND saved_logger_tests)
+
 # Execute the actual adapter against a bounded SDK double. This is semantic
 # coverage, not radio/ESP-IDF backend qualification; the ESP example builds too.
 add_executable(bluedroid_link_tests bluedroid_link_test.cpp ../src/arduino_bluedroid_link.cpp)

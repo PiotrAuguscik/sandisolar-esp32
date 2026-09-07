@@ -1,10 +1,16 @@
 #include <sandisolar.h>
 #include <sandisolar/arduino_bluedroid_link.h>
+#include <Preferences.h>
+#include "SavedLogger.h"
 
 // Leave empty to select the only matching logger, or enter YOUR logger name
 // (e.g. WF12345678, NOT the inverter serial) to disambiguate several devices.
 // No MAC address is required. This is a discovery hint, not authentication.
 const char logger_name[] = "";
+// Set true for a discovery-only start after replacing a logger, then restore
+// false. Only this example's saved logger key is removed; Wi-Fi is untouched.
+constexpr bool forget_saved_logger_on_boot = false;
+constexpr uint32_t read_interval_ms = 30000;
 // Explicit profile choice, NOT automatic model qualification. Select what you
 // want to read by name; the library derives addresses, widths and scaling.
 const auto& profile = sandisolar::aohai_modbus_v214_profile();
@@ -30,6 +36,40 @@ unsigned attempts = 0;
 uint32_t action_at = 0;
 uint32_t last_read_at = 0;
 bool have_read = false;
+bool cache_attempted = false;
+
+bool loadLogger() {
+  Preferences preferences;
+  if (!preferences.begin("sandi-ble", !forget_saved_logger_on_boot)) return false;
+  if (forget_saved_logger_on_boot) {
+    const bool removed = !preferences.isKey("logger") || preferences.remove("logger");
+    Serial.println(removed ? "Saved logger cleared." : "Could not clear saved logger.");
+    preferences.end();
+    return false;
+  }
+  uint8_t bytes[saved_logger::size]{};
+  sandisolar::BleScanCandidate candidate{};
+  const bool loaded = preferences.getBytesLength("logger") == sizeof(bytes) &&
+      preferences.getBytes("logger", bytes, sizeof(bytes)) == sizeof(bytes) &&
+      saved_logger::decode(bytes, sizeof(bytes), candidate) &&
+      saved_logger::matches(candidate, logger_name);
+  preferences.end();
+  if (loaded) selected = candidate;
+  return loaded;
+}
+
+void saveLogger() {
+  uint8_t bytes[saved_logger::size]{};
+  Preferences preferences;
+  if (!saved_logger::encode(selected, bytes) || !preferences.begin("sandi-ble", false)) {
+    Serial.println("Logger cache unavailable; reads continue without persistence.");
+    return;
+  }
+  const bool saved = preferences.putBytes("logger", bytes, sizeof(bytes)) == sizeof(bytes);
+  preferences.end();
+  Serial.println(saved ? "Logger saved for direct reconnect after restart."
+                       : "Logger save failed; reads continue without persistence.");
+}
 
 void setup() {
   Serial.begin(115200);
@@ -38,6 +78,11 @@ void setup() {
   Serial.println(sandisolar::error_name(error));
   Serial.println("Before first discovery: HaiPower app -> General Setting -> Bluetooth Enabled -> Enable -> Set.");
   Serial.println("Keep a phone's Local Tool disconnected while the ESP connects.");
+  if (enabled) {
+    have_target = loadLogger();
+    cache_attempted = have_target;
+    if (have_target) Serial.println("Using saved logger; no application discovery scan.");
+  }
   // Application may configure Wi-Fi independently. This library does not.
 }
 
@@ -91,6 +136,10 @@ void loop() {
       // No zero-valued fallback and no stale cache masquerading as a new read.
     } else {
       attempts = 0; // reset failure budget only after validated telemetry
+      if (!cache_attempted) {
+        cache_attempted = true;  // no flash write on every measurement/retry
+        saveLogger();           // only after a fully validated response
+      }
       for (auto signal : signals) {
         auto reading = sandisolar::decode_signal(profile,signal,result);
         if (reading) {
@@ -120,7 +169,7 @@ void loop() {
       Serial.println(sandisolar::error_name(error));
     }
   } else if (session.state() == sandisolar::BleSessionState::Ready && !waiting &&
-             (!have_read || now-last_read_at >= 10000)) {
+             (!have_read || now-last_read_at >= read_interval_ms)) {
     const auto error = sandisolar::read_signals(session,profile,signals,now);
     if (error == sandisolar::Error::None) waiting = true;
     else if (error == sandisolar::Error::CorrelationExhausted) {
