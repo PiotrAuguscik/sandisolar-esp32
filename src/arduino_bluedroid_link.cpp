@@ -1,6 +1,6 @@
 #include "haipower/arduino_bluedroid_link.h"
 
-#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR == 4
+#if defined(ARDUINO_ARCH_ESP32) && ESP_IDF_VERSION_MAJOR == 4 && !defined(SANDISOLAR_USE_NIMBLE)
 #include <Arduino.h>
 #include <esp_bt.h>
 #include <esp_bt_main.h>

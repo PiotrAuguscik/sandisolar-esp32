@@ -330,6 +330,43 @@ numbers represent fake input data, not values an application must supply to read
 an inverter. Normal BLE code uses the named APIs above and receives actual
 registers from the session.
 
+## Shared Bluetooth (NimBLE)
+
+To use this library alongside other NimBLE clients, select the NimBLE adapter
+instead of Bluedroid. The application initializes Bluetooth once; each library
+owns only its device connection. Neither library needs to know about the other.
+
+```ini
+lib_deps =
+    https://github.com/PiotrAuguscik/sandisolar-esp32.git
+    h2zero/NimBLE-Arduino@2.3.6
+build_flags = -DSANDISOLAR_USE_NIMBLE=1
+```
+
+```cpp
+#include <NimBLEDevice.h>
+#include <sandisolar/arduino_nimble_link.h>
+
+// In setup, after enabling Wi-Fi modem sleep if Wi-Fi is active:
+NimBLEDevice::init("my-controller");
+NimBLEDevice::setMTU(512);
+const auto error = sandisolar::attach_arduino_nimble();
+```
+
+Construct `BleReadSession` with `sandisolar::arduino_nimble_link()` and
+`sandisolar::esp32_mbedtls_aes128_cbc()`; the named read/decoding APIs above are
+unchanged. See [NimbleSavedLogger](examples/NimbleSavedLogger/NimbleSavedLogger.ino).
+This adapter connects to a **known address, address type and logger identity**;
+it does not provide a scanner. Save these from an initial discovery. Knowing the
+address does not bypass the logger's Bluetooth enable requirement.
+
+The adapter never initializes/deinitializes NimBLE or changes Wi-Fi. Disconnect
+closes only its own client. Keep the NimBLE runtime alive, configure enough client
+slots, coordinate scanning in the application, and call the session from one
+task. A bounded worker handles blocking GATT operations; continue polling the
+session regularly. Queue overflow fails the session rather than returning partial
+data. Do not combine this profile with Bluedroid on the same ESP32.
+
 ## Other examples
 
 - [DecodeCapturedPage](examples/DecodeCapturedPage/DecodeCapturedPage.ino):

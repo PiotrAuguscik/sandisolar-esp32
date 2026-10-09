@@ -15,6 +15,15 @@ def code(path):
 
 
 class BleBoundaries(unittest.TestCase):
+    def test_nimble_runtime_is_application_owned(self):
+        text = code("src/arduino_nimble_link.cpp")
+        self.assertNotRegex(text, r"NimBLEDevice::(?:init|deinit|setMTU)|humsienk|fieldprobe|Preferences")
+        self.assertEqual(set(re.findall(r"\besp_wifi_\w+", text)),
+                         {"esp_wifi_get_mode", "esp_wifi_get_ps"})
+        for path in (ROOT / "src").rglob("*"):
+            if path.is_file():
+                self.assertNotIn("humsienk", path.read_text().lower())
+
     def test_session_has_no_platform_or_field_dependencies(self):
         for path in ("src/ble_session.cpp", "src/haipower/ble_session.h"):
             text = code(path)
@@ -129,7 +138,7 @@ class BleBoundaries(unittest.TestCase):
         if not compiler:
             self.skipTest("C++11 compiler needed to check README examples")
         readme = (ROOT / "README.md").read_text()
-        section = readme.split("## Read SOC — no register numbers", 1)[1].split("## Other examples", 1)[0]
+        section = readme.split("## Read SOC — no register numbers", 1)[1].split("## Shared Bluetooth", 1)[0]
         snippets = re.findall(r"```cpp\n(.*?)```", section, re.S)
         groups = [s for s in snippets if s.startswith("const sandisolar::SignalId signals[]")]
         self.assertEqual(len(groups), 5)

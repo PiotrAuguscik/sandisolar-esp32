@@ -5,6 +5,7 @@ set(HAIPOWER_SOURCES
     src/ble_discovery.cpp
     src/ble_session.cpp
     src/arduino_bluedroid_link.cpp
+    src/arduino_nimble_link.cpp
     src/crc16_modbus.cpp
     src/esp32_mbedtls_crypto.cpp
     src/modbus_rtu.cpp
