@@ -40,10 +40,20 @@ int main() {
   assert(received.bytes[0]==7 && received.size==3);
   link.close(); assert(next(BleLink::EventType::Closed).epoch==1);
   assert(!test_client.isConnected());
+  test_client.connectSucceeds=false;
   assert(link.open(target,2)==Error::None);
-  assert(next(BleLink::EventType::Ready).epoch==2);
+  auto unavailable=next(BleLink::EventType::Closed);
+  assert(unavailable.epoch==2 && unavailable.error==Error::TransportFailure);
+  test_client.connectSucceeds=true;
+  assert(link.open(target,3)==Error::None);
+  assert(next(BleLink::EventType::Ready).epoch==3);
   oldCallback(nullptr,payload,sizeof(payload),true);
   BleLink::Event event{}; assert(!link.poll(event));
+  test_client.connected=false;
+  auto disconnected=next(BleLink::EventType::Closed);
+  assert(disconnected.epoch==3 && disconnected.error==Error::NotConnected);
+  assert(link.open(target,4)==Error::None);
+  assert(next(BleLink::EventType::Ready).epoch==4);
   // Bounded queue saturation is a transport fault, not silently lost telemetry.
   for (int i=0;i<9;++i) test_client.service.characteristic.callback(nullptr,payload,3,true);
   assert(next(BleLink::EventType::Fault).error==Error::TransportFault);

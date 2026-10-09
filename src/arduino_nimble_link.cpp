@@ -105,19 +105,20 @@ class NimbleLink final : public BleLink {
     xQueueReset(commands_);
     closing_ = false;
     phase_ = Phase::Idle;
-    emit(EventType::Closed, epoch);
+    emit(EventType::Closed, epoch, close_error_);
+    close_error_ = Error::None;
   }
   void connect(const Command& c) {
     char address[18];
     std::snprintf(address, sizeof(address), "%02x:%02x:%02x:%02x:%02x:%02x",
                   c.address[0],c.address[1],c.address[2],c.address[3],c.address[4],c.address[5]);
     if (!client_->connect(NimBLEAddress(std::string(address), c.address_type), true, false, true)) {
-      emit(EventType::Fault, c.epoch, Error::TransportFailure); closing_ = true; return;
+      close_error_ = Error::TransportFailure; closing_ = true; return;
     }
     auto* service = client_->getService(NimBLEUUID(std::uint16_t(0x00ff)));
     characteristic_ = service ? service->getCharacteristic(NimBLEUUID(std::uint16_t(0xff01))) : nullptr;
     if (!characteristic_ || !characteristic_->canNotify() || !characteristic_->canWrite()) {
-      emit(EventType::Fault, c.epoch, Error::TransportFailure); closing_ = true; return;
+      close_error_ = Error::TransportFailure; closing_ = true; return;
     }
     const auto epoch = c.epoch;  // immutable callback identity, never current epoch
     accepting_ = true;
@@ -129,7 +130,7 @@ class NimbleLink final : public BleLink {
           e.size = size; std::memcpy(e.bytes, data, size);
           if (xQueueSend(events_, &e, 0) != pdTRUE) overflow_ = true;
         }, true)) {
-      emit(EventType::Fault, epoch, Error::TransportFailure); closing_ = true; return;
+      close_error_ = Error::TransportFailure; closing_ = true; return;
     }
     if (!closing_) emit(EventType::Ready, epoch);
   }
@@ -142,11 +143,12 @@ class NimbleLink final : public BleLink {
         if (c.opening) connect(c);
         else if (!closing_ && c.epoch == epoch_ && client_->isConnected() && characteristic_) {
           const bool ok = characteristic_->writeValue(c.bytes, c.size, true);
-          emit(ok ? EventType::Written : EventType::Fault, c.epoch,
+          emit(EventType::Written, c.epoch,
                ok ? Error::None : Error::TransportFailure);
-          if (!ok) closing_ = true;
+          if (!ok) { close_error_ = Error::TransportFailure; closing_ = true; }
         }
       } else if (phase_ == Phase::Active && accepting_ && !client_->isConnected()) {
+        close_error_ = Error::NotConnected;
         stop(epoch_);
       }
     }
@@ -157,6 +159,7 @@ class NimbleLink final : public BleLink {
   std::atomic<std::uint32_t> epoch_{0};
   NimBLEClient* client_ = nullptr;
   NimBLERemoteCharacteristic* characteristic_ = nullptr;
+  Error close_error_ = Error::None;  // worker-owned; published only after close barrier
   QueueHandle_t events_ = nullptr, commands_ = nullptr;
 };
 NimbleLink& link() { static NimbleLink value; return value; }

@@ -22,9 +22,10 @@ class NimBLERemoteService {
 class NimBLEClient {
  public:
   std::atomic<bool> connected{false};
+  bool connectSucceeds=true;
   NimBLERemoteService service;
   void setConnectTimeout(unsigned) {}
-  bool connect(NimBLEAddress,bool,bool,bool) { connected=true; return true; }
+  bool connect(NimBLEAddress,bool,bool,bool) { connected=connectSucceeds; return connectSucceeds; }
   void disconnect() { connected=false; }
   bool isConnected() const { return connected; }
   unsigned getMTU() const { return 512; }
